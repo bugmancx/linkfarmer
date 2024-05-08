@@ -1,0 +1,17 @@
+services:
+  discord-bot:
+    container_name: link-farmer
+    build:
+      context: .
+    environment:
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
+      - URL_LOG=/data/log/url_log.txt
+      - JDOWNLOADER=true
+      - JDOWNLOADER_CRAWLJOB_PATH=/data/crawljobs
+      - JDOWNLOADER_OUTPUT_PATH=/output/linkfarmer
+      - DISCORD_CHANNELS=${DISCORD_CHANNELS}
+      - PGID=911
+      - PGID=911
+    volumes:
+      - ./data/log:/data/log
+      - /mnt/data/docker/containers/jdownloader/folderwatch:/data/crawljobs
