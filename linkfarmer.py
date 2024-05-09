@@ -13,6 +13,10 @@ JDOWNLOADER = os.getenv('JDOWNLOADER', 'false')
 JDOWNLOADER_CRAWLJOB_PATH = os.getenv('JDOWNLOADER_CRAWLJOB_PATH', '/data/crawljobs')
 JDOWNLOADER_OUTPUT_PATH = os.getenv('JDOWNLOADER_OUTPUT_PATH', '/data/output')  # Default to '/output' if not provided
 DISCORD_CHANNELS = os.getenv('DISCORD_CHANNELS', '')
+EXCLUDED_DOMAINS = os.getenv('EXCLUDED_DOMAINS', '')
+
+# Convert excluded domains from string to a set
+excluded_domains = set(domain.strip() for domain in EXCLUDED_DOMAINS.split(',') if domain.strip())
 
 # Create bot with appropriate intents
 intents = nextcord.Intents.default()
@@ -31,6 +35,13 @@ async def on_ready():
     logging.info(f'Logged in as {bot.user}')
 
 def process_url(url, username, uid):
+    
+    # Check if the URL domain is excluded
+    domain = re.search(r'https?://([^/]+)', url).group(1)
+    if domain in excluded_domains:
+        logging.info(f'URL {url} is excluded and will not be processed.')
+        return  # Skip processing if the domain is excluded
+
     log_entry = f'{datetime.now()} - {username} ({uid}): {url}'
 
     # Log URL to url_log.txt file
