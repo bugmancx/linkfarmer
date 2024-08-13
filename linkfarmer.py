@@ -34,7 +34,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 async def on_ready():
     logging.info(f'Logged in as {bot.user}')
 
-def process_url(url, username, uid):
+def process_url(url, username, uid, message_content):
     
     # Check if the URL domain is excluded
     domain = re.search(r'https?://([^/]+)', url).group(1)
@@ -49,11 +49,18 @@ def process_url(url, username, uid):
         file.write(f'{log_entry}\n')
 
     if JDOWNLOADER.lower() == 'true':
-        # Create crawljob file name with username prefix
-        filename_url = re.sub(r'[^\w\s\-\.]', '_', url)
-
-        # Create crawljob file name with username prefix
-        crawljob_filename = f'{username}-{filename_url}.crawljob'
+        # Determine if message content is just the URL or more
+        if message_content.strip() == url:
+            # Use the sanitized URL as the filename
+            sanitized_url = re.sub(r'[^\w\s\-\.]', '_', url.replace('https://', '').replace('http://', ''))
+            crawljob_filename = f'{username}-{sanitized_url}.crawljob'
+            package_name = f'{username}-{sanitized_url}'
+        else:
+            # Sanitize the message content to create a valid filename
+            filename_message_content = re.sub(r'[^\w\s\-\.]', '_', message_content)
+            # Create crawljob file name with username and sanitized message content
+            crawljob_filename = f'{username}-{filename_message_content}.crawljob'
+            package_name = crawljob_filename.replace('.crawljob', '')
 
         logging.info(f'Creating crawljob file {crawljob_filename} for URL {url}')
 
@@ -64,7 +71,7 @@ def process_url(url, username, uid):
             "autoStart": "TRUE",
             "autoConfirm": "TRUE",
             "enabled": "TRUE",
-            "packageName": os.path.basename(url),
+            "packageName": package_name,
             "overwritePackagizerEnabled": True
         }]
 
@@ -83,7 +90,7 @@ async def on_message(message):
     urls = re.findall(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F])|[#])+', message.content)
     if urls:
         for url in urls:
-            process_url(url, message.author.name, message.author.id)
+            process_url(url, message.author.name, message.author.id, message.content)
 
     # Log message content to console
     logging.info(f'User {message.author.name} in channel {message.channel.name} posted: {message.content}')
