@@ -35,15 +35,28 @@ async def on_ready():
     logging.info(f'Logged in as {bot.user}')
 
 
-def sanitize_filename(filename):
-    # Replace all spaces with underscores
-    filename = filename.replace(' ', '_')
+def sanitize_filename(url, max_length=255):
+    # Remove the protocol (http or https) from the URL
+    sanitized_url = re.sub(r'^https?://', '', url)
     
-    # Remove newline characters and replace problematic characters for filenames
-    filename = re.sub(r'[^\w\.\-]', '_', filename)
+    # Replace slashes with underscores
+    sanitized_url = sanitized_url.replace('/', '_')
+
+    # Remove problematic characters for filenames
+    sanitized_url = re.sub(r'[^\w\.\-]', '_', sanitized_url)
     
-    # Return sanitized filename
-    return filename
+    # Remove consecutive underscores
+    sanitized_url = re.sub(r'__+', '_', sanitized_url)
+
+    # Ensure filename doesn't exceed max_length (including file extension)
+    if len(sanitized_url) > max_length:
+        base, ext = os.path.splitext(sanitized_url)
+        # Trim base to fit within the limit, leaving room for the extension
+        base = base[:max_length - len(ext)]
+        sanitized_url = base + ext
+
+    # Return sanitized and trimmed filename
+    return sanitized_url
 
 def process_url(url, username, uid, message_content):
     
