@@ -34,6 +34,17 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 async def on_ready():
     logging.info(f'Logged in as {bot.user}')
 
+
+def sanitize_filename(filename):
+    # Replace all spaces with underscores
+    filename = filename.replace(' ', '_')
+    
+    # Remove newline characters and replace problematic characters for filenames
+    filename = re.sub(r'[^\w\.\-]', '_', filename)
+    
+    # Return sanitized filename
+    return filename
+
 def process_url(url, username, uid, message_content):
     
     # Check if the URL domain is excluded
@@ -52,12 +63,15 @@ def process_url(url, username, uid, message_content):
         # Determine if message content is just the URL or more
         if message_content.strip() == url:
             # Use the sanitized URL as the filename
-            sanitized_url = re.sub(r'[^\w\s\-\.]', '_', url.replace('https://', '').replace('http://', ''))
+            sanitized_url = url.replace('https://', '').replace('http://', '')
+            sanitized_url = sanitized_url.replace('/', '_')  # Replace slashes with underscores
+            sanitized_url = sanitize_filename(sanitized_url)  # Apply filename sanitization
+
             crawljob_filename = f'{username}-{sanitized_url}.crawljob'
             package_name = f'{username}-{sanitized_url}'
         else:
             # Sanitize the message content to create a valid filename
-            filename_message_content = re.sub(r'[^\w\s\-\.]', '_', message_content)
+            filename_message_content = sanitize_filename(message_content)
             # Create crawljob file name with username and sanitized message content
             crawljob_filename = f'{username}-{filename_message_content}.crawljob'
             package_name = crawljob_filename.replace('.crawljob', '')
