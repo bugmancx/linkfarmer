@@ -58,6 +58,29 @@ def sanitize_filename(url, max_length=255):
     # Return sanitized and trimmed filename
     return sanitized_url
 
+# Add this function to handle reading and processing URLs from the input file
+def process_input_file():
+    INPUT_FILE = os.getenv('INPUT_FILE', '/data/input/input_urls.txt')  # Path to the input file
+    if not os.path.exists(INPUT_FILE):
+        return  # No file to process
+
+    with open(INPUT_FILE, 'r') as file:
+        lines = file.readlines()
+
+    # Clear the file after reading its contents
+    with open(INPUT_FILE, 'w') as file:
+        pass
+
+    if not lines:
+        return  # No content to process
+
+    logging.info(f"Processing URLs from {INPUT_FILE}")
+    for line in lines:
+        urls = re.findall(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F])|[#])+', line)
+        if urls:
+            for url in urls:
+                process_url(url, 'InputFileUser', 'file', line.strip())
+
 def process_url(url, username, uid, message_content):
     
     # Check if the URL domain is excluded
@@ -114,6 +137,9 @@ async def on_message(message):
     if message.author == bot.user or message.channel.id not in monitored_channels:
         return
 
+    # Process the input file before handling the message
+    process_input_file()
+
     urls = re.findall(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F])|[#])+', message.content)
     if urls:
         for url in urls:
@@ -121,5 +147,5 @@ async def on_message(message):
 
     # Log message content to console
     logging.info(f'User {message.author.name} in channel {message.channel.name} posted: {message.content}')
-
+    
 bot.run(DISCORD_BOT_TOKEN)
