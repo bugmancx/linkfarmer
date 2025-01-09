@@ -78,12 +78,18 @@ def extract_urls(message_content):
 
 def extract_episode_info(message_content):
     """
-    Extract episode information such as show name, season, and episode from the message content.
+    Extract detailed episode information from the message content.
     """
-    match = re.search(r'(.+?) - S(\d{2})E(\d{2})', message_content)
+    # Match patterns for full episode details including optional episode name and quality
+    match = re.search(r'(.+?) - S(\d{2})E(\d{2})(?: - (.+?))?(?: - (\(.+?\)))?', message_content)
     if match:
-        return match.group(0)
-    return None
+        # Extract show name, season/episode, and additional details if present
+        show_name = match.group(1).strip()
+        season_episode = f"S{match.group(2)}E{match.group(3)}"
+        episode_name = match.group(4).strip() if match.group(4) else "No episode name"
+        quality = match.group(5).strip() if match.group(5) else "No quality info"
+        return f"{show_name} - {season_episode} - {episode_name} - {quality}"
+    return "No episode info detected"
 
 
 def get_actual_username(username, message_content):
@@ -130,7 +136,7 @@ def process_url(url, username, uid, message_content):
         return
 
     actual_username = get_actual_username(username, message_content)
-    episode_info = extract_episode_info(message_content) or "No episode info detected"
+    episode_info = extract_episode_info(message_content)
     log_entry = f'{datetime.now()}|{actual_username}|{url}|{episode_info}'
 
     with open(URL_LOG, 'a') as file:
@@ -158,7 +164,6 @@ def process_url(url, username, uid, message_content):
         with open(crawljob_file, 'w') as file:
             file.write(json.dumps(crawljob_content, indent=4))
             logging.info(f'URL {url} added to crawljob file {crawljob_file}')
-
 
 @bot.event
 async def on_message(message):
