@@ -78,18 +78,22 @@ def extract_urls(message_content):
 
 def extract_episode_info(message_content):
     """
-    Extract detailed episode information from the message content, including filenames.
+    Extract detailed episode information or full filename from the message content.
     """
+    # Prioritise filenames in the "Uploaded by" line
+    match_uploaded = re.search(r'(Uploaded by \w+.*?)(\((.*?)\))', message_content)
+    if match_uploaded:
+        return match_uploaded.group(1).strip()
+
     # Look for a detailed string including show name, season/episode, and additional details
     match = re.search(r'(.+?) - S(\d{2})E(\d{2})(?: - (.+?))?', message_content)
     if match:
-        # Extract show name, season/episode, and additional details if present
         show_name = match.group(1).strip()
         season_episode = f"S{match.group(2)}E{match.group(3)}"
         episode_name = match.group(4).strip() if match.group(4) else ""
         return f"{show_name} - {season_episode} - {episode_name}".strip(" -")
 
-    # If no match, return the full quoted text string or the entire message
+    # If no match, return the quoted text string or fallback to entire message content
     quoted_match = re.search(r'"([^"]+)"', message_content)  # Look for quoted text
     if quoted_match:
         return quoted_match.group(1).strip()
