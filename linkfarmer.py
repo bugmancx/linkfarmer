@@ -37,7 +37,7 @@ async def on_ready():
     logging.info(f'Logged in as {bot.user}')
 
 
-def sanitize_filename(url, max_length=128):
+def sanitize_filename(url, max_length=255):
     # Remove the protocol (http or https) from the URL
     sanitized_url = re.sub(r'^https?://', '', url)
     
