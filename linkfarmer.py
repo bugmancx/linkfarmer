@@ -4,6 +4,7 @@ import nextcord
 import logging
 import json
 from nextcord.ext import commands
+import urllib.parse
 from datetime import datetime
 
 # Define environment variables for bot configuration
@@ -81,6 +82,27 @@ def process_input_file():
             for url in urls:
                 process_url(url, 'InputFileUser', 'file', line.strip())
 
+
+def extract_urls(message_content):
+    """
+    Extract valid URLs from message content using refined regex and validation.
+    """
+    # Regex to match URLs while excluding trailing characters like `>` or `)`
+    raw_urls = re.findall(r'https?://[^\s<>")]+', message_content)
+
+    # Post-process the URLs to ensure they are valid
+    valid_urls = [url.strip() for url in raw_urls if is_valid_url(url)]
+    return valid_urls
+
+
+def is_valid_url(url):
+    """
+    Validate the structure of the URL.
+    """
+    parsed = urllib.parse.urlparse(url)
+    return bool(parsed.netloc) and bool(parsed.scheme)
+
+
 def process_url(url, username, uid, message_content):
     
     # Check if the URL domain is excluded
@@ -140,12 +162,14 @@ async def on_message(message):
     # Process the input file before handling the message
     process_input_file()
 
-    urls = re.findall(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F])|[#])+', message.content)
+    urls = extract_urls(message.content)
     if urls:
         for url in urls:
             process_url(url, message.author.name, message.author.id, message.content)
 
-    # Log message content to console
     logging.info(f'User {message.author.name} in channel {message.channel.name} posted: {message.content}')
-    
+
+    if urls:
+        logging.info(f'Extracted URLs from message: {urls}')
+
 bot.run(DISCORD_BOT_TOKEN)
