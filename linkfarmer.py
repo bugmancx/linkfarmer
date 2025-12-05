@@ -31,6 +31,11 @@ monitored_channels = set(int(cid) for cid in DISCORD_CHANNELS.split(',') if cid.
 # Set up logging to console
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+# Quiet noisy library logs (Discord gateway/connect chatter)
+logging.getLogger('nextcord').setLevel(logging.WARNING)
+logging.getLogger('discord').setLevel(logging.WARNING)
+logging.getLogger('websockets').setLevel(logging.WARNING)
+
 @bot.event
 async def on_ready():
     logging.info(f'Logged in as {bot.user}')

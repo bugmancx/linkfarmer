@@ -18,8 +18,9 @@ FROM python:3.10-slim
 # Set the working directory in the container to /app
 WORKDIR /app
 
-# Create a non-root user and group
-RUN groupadd -g 911 linkfarmer && useradd -u 911 -g 911 -m linkfarmer
+# Install gosu for runtime user switching
+RUN apt-get update && apt-get install -y --no-install-recommends gosu \
+	&& rm -rf /var/lib/apt/lists/*
 
 # Copy virtual environment from the builder stage
 COPY --from=builder /build/venv ./venv
@@ -38,9 +39,9 @@ ENV PGID=911
 # Make directories for logs and crawljobs
 RUN mkdir -p /data/log /data/crawljobs
 
-# Set the ownership of /data to the specified user and group
-RUN chown -R linkfarmer:linkfarmer /data
+# Entry point handles creating the runtime user/group based on PUID/PGID
+COPY entrypoint.sh ./entrypoint.sh
+RUN chmod +x ./entrypoint.sh
 
-# Run linkfarmer.py when the container launches using the virtual environment
-USER linkfarmer
+ENTRYPOINT ["./entrypoint.sh"]
 CMD ["venv/bin/python", "linkfarmer.py"]
