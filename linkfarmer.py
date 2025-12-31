@@ -28,8 +28,10 @@ EXCLUDED_DOMAINS = os.getenv('EXCLUDED_DOMAINS', '')
 METRICS_PORT = int(os.getenv('METRICS_PORT', '9105'))
 METRICS_ADDR = os.getenv('METRICS_ADDR', '0.0.0.0')
 RECENT_GRABS_FILE = os.getenv('RECENT_GRABS_FILE', '/data/state/recent_grabs.json')
+LAST_SEEN_FILE = os.getenv('LAST_SEEN_FILE', '/data/state/last_seen_messages.json')
 RECENT_GRABS_MAX = int(os.getenv('RECENT_GRABS_MAX', '40'))
 MISSED_MESSAGE_HISTORY_LIMIT = int(os.getenv('MISSED_MESSAGE_HISTORY_LIMIT', '200'))
+MISSED_MESSAGE_MAX_AGE_HOURS = int(os.getenv('MISSED_MESSAGE_MAX_AGE_HOURS', '24'))
 
 # Convert excluded domains from string to a set
 excluded_domains = set(domain.strip() for domain in EXCLUDED_DOMAINS.split(',') if domain.strip())
@@ -136,6 +138,41 @@ def ensure_recent_grabs_file_exists():
     if not os.path.exists(RECENT_GRABS_FILE):
         with open(RECENT_GRABS_FILE, 'w') as file:
             json.dump([], file)
+
+
+def ensure_last_seen_file_exists():
+    directory = os.path.dirname(LAST_SEEN_FILE)
+    if directory:
+        os.makedirs(directory, exist_ok=True)
+    if not os.path.exists(LAST_SEEN_FILE):
+        with open(LAST_SEEN_FILE, 'w') as file:
+            json.dump({}, file)
+
+
+def persist_last_seen_messages():
+    ensure_last_seen_file_exists()
+    payload = {str(cid): str(mid) for cid, mid in LAST_SEEN_MESSAGE_ID.items()}
+    with open(LAST_SEEN_FILE, 'w') as file:
+        json.dump(payload, file, indent=2)
+
+
+def load_last_seen_messages():
+    ensure_last_seen_file_exists()
+    try:
+        with open(LAST_SEEN_FILE, 'r') as file:
+            data = json.load(file)
+    except json.JSONDecodeError:
+        logging.warning('last seen messages file is corrupt; resetting %s', LAST_SEEN_FILE)
+        data = {}
+    except FileNotFoundError:
+        data = {}
+
+    LAST_SEEN_MESSAGE_ID.clear()
+    for cid_str, mid_str in data.items():
+        try:
+            LAST_SEEN_MESSAGE_ID[int(cid_str)] = int(mid_str)
+        except (ValueError, TypeError):
+            logging.warning('Invalid last seen message entry: %s=%s', cid_str, mid_str)
 
 
 def _resolved_added_path(filename: str) -> str:
@@ -265,6 +302,8 @@ async def on_ready():
         logging.info('Monitoring channels:\n%s', '\n'.join(f' - {label}' for label in labels))
     # Load persisted grabs once the bot is ready so the data survives restarts.
     await asyncio.to_thread(load_recent_grabs)
+    # Load last seen message IDs so we can resume from where we left off
+    await asyncio.to_thread(load_last_seen_messages)
     if not poll_input_file.is_running():
         poll_input_file.start()
     if not refresh_recent_grabs_from_disk.is_running():
@@ -579,13 +618,16 @@ async def handle_incoming_message(message, *, from_history: bool = False):
     )
 
     LAST_SEEN_MESSAGE_ID[message.channel.id] = message.id
+    await asyncio.to_thread(persist_last_seen_messages)
 
 
 async def catch_up_missed_messages(*, reason: str = 'resume'):
     if not LAST_SEEN_MESSAGE_ID:
+        logging.info('No last seen messages; skipping history replay (starting fresh from now)')
         return
 
     cutoff = datetime.now(timezone.utc)
+    max_age = cutoff - datetime.timedelta(hours=MISSED_MESSAGE_MAX_AGE_HOURS)
 
     channel_ids = set(LAST_SEEN_MESSAGE_ID.keys())
     if not allow_all_channels:
@@ -598,13 +640,30 @@ async def catch_up_missed_messages(*, reason: str = 'resume'):
             continue
 
         after_id = LAST_SEEN_MESSAGE_ID.get(cid)
+        if not after_id:
+            continue
+
+        # Check if the last seen message is too old (> 24 hours)
+        try:
+            last_msg = await channel.fetch_message(after_id)
+            if last_msg.created_at < max_age:
+                logging.info(
+                    'Last seen message in %s is >%dh old; skipping history replay for this channel',
+                    _channel_label(cid),
+                    MISSED_MESSAGE_MAX_AGE_HOURS,
+                )
+                continue
+        except (nextcord.NotFound, nextcord.Forbidden, nextcord.HTTPException) as exc:
+            logging.debug('Could not fetch last message %s in %s: %s', after_id, _channel_label(cid), exc)
+            # If we can't fetch the message, skip history replay for safety
+            continue
+
         history_kwargs = {
             "limit": MISSED_MESSAGE_HISTORY_LIMIT,
             "oldest_first": True,
             "before": cutoff,
+            "after": nextcord.Object(id=after_id),
         }
-        if after_id:
-            history_kwargs["after"] = nextcord.Object(id=after_id)
 
         async for msg in channel.history(**history_kwargs):
             await handle_incoming_message(msg, from_history=True)
