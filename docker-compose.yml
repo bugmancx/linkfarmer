@@ -12,6 +12,9 @@ services:
       - DISCORD_CHANNELS=${DISCORD_CHANNELS}
       - PGID=911
       - PGID=911
+      - METRICS_PORT=9105
     volumes:
       - ./data/log:/data/log
       - /mnt/data/docker/containers/jdownloader/folderwatch:/data/crawljobs
+    ports:
+      - "9105:9105"

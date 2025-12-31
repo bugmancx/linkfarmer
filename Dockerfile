@@ -18,8 +18,9 @@ FROM python:3.10-slim
 # Set the working directory in the container to /app
 WORKDIR /app
 
-# Install gosu for runtime user switching
-RUN apt-get update && apt-get install -y --no-install-recommends gosu \
+# Install gosu for runtime user switching and curl for healthchecks
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends gosu curl ca-certificates \
 	&& rm -rf /var/lib/apt/lists/*
 
 # Copy virtual environment from the builder stage
